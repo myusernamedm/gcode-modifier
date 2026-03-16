@@ -2,6 +2,8 @@
 
 A Windows 11 desktop application for modifying G-Code exported from **Bambu Studio** to reduce oozing and stringing during multi-material toolchange travel.
 
+# WARNING - THIS APP HAS NOT UNDERGONE QUALITY CONTROL AND GENERATED G-CODE SHOULD BE REVIEWED MANUALLY BEFORE USE TO VERIFY CORRECTNESS.
+
 ---
 
 ## The Problem
