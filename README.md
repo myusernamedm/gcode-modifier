@@ -12,7 +12,7 @@ When a multi-material print on the H2D finishes a toolchange at the wipe tower (
 
 ## The Solution
 
-This app post-processes your Bambu Studio `.gcode` file to insert three actions at each toolchange:
+This app post-processes your Bambu Studio `.gcode` file to insert three actions **for the left nozzle** at each toolchange:
 
 1. **Dwell** — hold position at the wipe tower for 3 seconds so gravity pulls any ooze down onto the tower rather than mid-air
 2. **Wipe pass** — move the nozzle 5 mm across the tower surface to wipe off residual filament
