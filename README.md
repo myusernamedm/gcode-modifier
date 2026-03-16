@@ -1,4 +1,4 @@
-# Bambu G-Code Modifier
+# Bambu H2D G-Code Modifier
 
 A Windows 11 desktop application for modifying G-Code exported from **Bambu Studio** to reduce oozing and stringing during multi-material toolchange travel.
 
