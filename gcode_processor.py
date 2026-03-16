@@ -137,8 +137,9 @@ def process_lines(lines, retraction_value, add_temperature,
                 # Fresh file: insert new dwell + wipe before the retraction
                 output_lines.extend(dwell_wipe_block)
                 if add_temperature:
+                    # T1 = left nozzle only; right nozzle (T0) is intentionally not modified
                     output_lines.append(
-                        f"M104 S{cool_temp} ; decrease temperature to {cool_temp}C before travel\n"
+                        f"M104 T1 S{cool_temp} ; decrease LEFT nozzle (T1) to {cool_temp}C before travel\n"
                     )
                     pending_temp = True
                 insertions += 1
@@ -154,8 +155,9 @@ def process_lines(lines, retraction_value, add_temperature,
 
         # --- TEMPERATURE M109 insertion: before de-retract at the part ---
         if pending_temp and DERETRACT_PATTERN.match(stripped):
+            # T1 = left nozzle only; right nozzle (T0) is intentionally not modified
             output_lines.append(
-                f"M109 S{reheat_temp} ; wait for temperature to reach {reheat_temp}C\n"
+                f"M109 T1 S{reheat_temp} ; wait for LEFT nozzle (T1) to reach {reheat_temp}C\n"
             )
             pending_temp = False
             # Fall through to emit the de-retract line itself

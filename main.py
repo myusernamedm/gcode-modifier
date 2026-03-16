@@ -17,7 +17,7 @@ class GCodeEditorApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Bambu G-Code Editor")
-        self.geometry("620x610")
+        self.geometry("620x630")
         self.resizable(False, False)
 
         self.input_path = None
@@ -97,6 +97,18 @@ class GCodeEditorApp(ctk.CTk):
         self.reheat_temp_entry.configure(state="disabled")
         self.reheat_temp_entry.pack(side="left", padx=(6, 2))
         ctk.CTkLabel(temp_inputs, text="°C").pack(side="left")
+
+        # Warning: T1 only
+        self.temp_warning = ctk.CTkLabel(
+            temp_outer,
+            text="⚠  Temperature changes apply to the LEFT nozzle (T1) only."
+                 "  Right nozzle (T0) is not modified.",
+            text_color="#FFA500",
+            font=ctk.CTkFont(size=12),
+            anchor="w",
+        )
+        self.temp_warning.pack(fill="x", padx=(28, 0), pady=(2, 4))
+        self.temp_warning.pack_forget()  # hidden until checkbox ticked
 
         # --- Separator ---
         ctk.CTkFrame(self, height=2, fg_color="#333333").pack(fill="x", padx=20, pady=6)
@@ -195,9 +207,14 @@ class GCodeEditorApp(ctk.CTk):
     # -------------------------------------------------------------------------
 
     def _on_temp_toggled(self):
-        state = "normal" if self.temp_var.get() else "disabled"
+        enabled = self.temp_var.get()
+        state = "normal" if enabled else "disabled"
         self.cool_temp_entry.configure(state=state)
         self.reheat_temp_entry.configure(state=state)
+        if enabled:
+            self.temp_warning.pack(fill="x", padx=(28, 0), pady=(2, 4))
+        else:
+            self.temp_warning.pack_forget()
 
     # -------------------------------------------------------------------------
     # Input validation
