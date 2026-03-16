@@ -6,7 +6,7 @@ A Windows 11 desktop application for modifying G-Code exported from **Bambu Stud
 
 ## The Problem
 
-When a multi-material print finishes a toolchange at the wipe tower, the nozzle immediately retracts and travels back to the part. Any molten filament still on the nozzle tip hangs in mid-air and gets dragged across the print surface, leaving stringing and blobs.
+When a multi-material print on the H2D finishes a toolchange at the wipe tower (Foaming material in left nozzle, standard material in right nozzle), the nozzle immediately retracts and travels back to the part. Any molten filament still on the nozzle tip hangs in mid-air and gets dragged across the print surface, leaving stringing and blobs.
 
 ## The Solution
 
