@@ -1,0 +1,7 @@
+*.gcode
+__pycache__/
+*.pyc
+*.pyo
+dist/
+build/
+*.spec
