@@ -7,9 +7,10 @@ DERETRACT_PATTERN = re.compile(r'^G1 E([\d.]+) F1800\s*$')
 TIME_PATTERN      = re.compile(
     r'total estimated time: (?:(\d+)d )?(\d+)h (\d+)m (\d+)s'
 )
-TOOLCHANGE_END = '; CP TOOLCHANGE END'
-SEPARATOR      = ';------------------'
-WIPE_END       = '; WIPE_END'
+TOOLCHANGE_START = '; CP TOOLCHANGE START'
+TOOLCHANGE_END   = '; CP TOOLCHANGE END'
+SEPARATOR        = ';------------------'
+WIPE_END         = '; WIPE_END'
 
 
 @dataclass
@@ -107,20 +108,41 @@ def process_lines(lines, retraction_value, add_temperature,
         "G90 ; absolute positioning\n",
     ]
 
-    output_lines  = []
-    after_tc_end  = False
-    saw_separator = False
-    pending_temp  = False
-    after_wipe_end = False
-    wipe_topup     = None  # original top-up E- value seen after WIPE_END
-    insertions    = 0
-    total         = len(lines)
+    output_lines       = []
+    in_toolchange_block = False
+    after_tc_end       = False
+    saw_separator      = False
+    pending_temp       = False
+    after_wipe_end     = False
+    wipe_topup         = None  # original top-up E- value seen after WIPE_END
+    insertions         = 0
+    total              = len(lines)
 
     for i, line in enumerate(lines):
         if progress_callback and i % 50000 == 0:
             progress_callback(int(i / total * 100))
 
         stripped = line.rstrip('\n').rstrip('\r').strip()
+
+        # --- STATE: CP TOOLCHANGE START/END block boundary tracking ---
+        if stripped == TOOLCHANGE_START:
+            in_toolchange_block = True
+            after_wipe_end = False  # discard any dangling wipe state
+            wipe_topup = None
+            output_lines.append(line)
+            continue
+
+        if stripped == TOOLCHANGE_END:
+            in_toolchange_block = False
+            after_tc_end  = True
+            saw_separator = False
+            output_lines.append(line)
+            continue
+
+        # Inside toolchange block: pass everything through unchanged
+        if in_toolchange_block:
+            output_lines.append(line)
+            continue
 
         # --- STATE: WIPE_END tracking (de-retract imbalance fix) ---
         if stripped == WIPE_END:
@@ -139,13 +161,6 @@ def process_lines(lines, retraction_value, add_temperature,
                 output_lines.append(retract_line)
                 continue
             # Not a retract after WIPE_END — fall through to normal processing
-
-        # --- STATE: entering after-toolchange-end zone ---
-        if stripped == TOOLCHANGE_END:
-            after_tc_end  = True
-            saw_separator = False
-            output_lines.append(line)
-            continue
 
         if after_tc_end and not saw_separator:
             if stripped == SEPARATOR:

@@ -429,6 +429,93 @@ class TestProgressCallback:
         process_lines(make_lines("G1 X100\n"), 3.5, False)
 
 
+# ── toolchange block protection ───────────────────────────────────────────────
+
+def tc_full_block(*inner_lines):
+    """A complete CP TOOLCHANGE START...END block containing inner_lines."""
+    return [
+        "; CP TOOLCHANGE START\n",
+        *inner_lines,
+        "; CP TOOLCHANGE END\n",
+        ";------------------\n",
+        "\n",
+    ]
+
+
+class TestToolchangeBlockProtection:
+    def test_retract_inside_block_not_replaced(self):
+        lines = make_lines(*tc_full_block("G1 E-14 F1800\n"), "G1 E-14 F1800\n")
+        result = run(lines, retraction=3.5)
+        # The one inside the block must stay, the one outside must be replaced
+        assert "G1 E-14 F1800\n" in result.lines
+        assert "G1 E-3.5 F1800\n" in result.lines
+
+    def test_deretract_inside_block_not_replaced(self):
+        lines = make_lines(*tc_full_block("G1 E14 F1800\n"))
+        result = run(lines, retraction=3.5)
+        assert "G1 E14 F1800\n" in result.lines
+        assert "G1 E3.5 F1800\n" not in result.lines
+
+    def test_cp_toolchange_wipe_values_preserved(self):
+        # Simulates the 0.8mm CP_TOOLCHANGE_WIPE retract/deretract pair
+        lines = make_lines(*tc_full_block(
+            "G1 E-0.8000 F1800\n",
+            "G1 X100 Y100 F3000\n",
+            "G1 E0.8000 F1800\n",
+        ))
+        result = run(lines, retraction=3.5)
+        assert "G1 E-0.8000 F1800\n" in result.lines
+        assert "G1 E0.8000 F1800\n" in result.lines
+        assert "G1 E-3.5 F1800\n" not in result.lines
+
+    def test_large_travel_retract_inside_block_preserved(self):
+        # Simulates the E-14 travel retract inside a toolchange block
+        lines = make_lines(*tc_full_block("G1 E-14 F1800\n", "G1 E14 F1800\n"))
+        result = run(lines, retraction=3.5)
+        assert "G1 E-14 F1800\n" in result.lines
+        assert "G1 E14 F1800\n" in result.lines
+
+    def test_retract_outside_block_still_replaced(self):
+        lines = make_lines(
+            "G1 E-5 F1800\n",
+            *tc_full_block("G1 E-5 F1800\n"),
+            "G1 E-5 F1800\n",
+        )
+        result = run(lines, retraction=3.5)
+        # Two replacements (before and after block), one preserved (inside)
+        assert result.lines.count("G1 E-3.5 F1800\n") == 2
+        assert result.lines.count("G1 E-5 F1800\n") == 1
+
+    def test_dwell_still_inserted_after_block(self):
+        # The dwell/wipe insertion at TOOLCHANGE END should still happen
+        lines = make_lines(
+            *tc_full_block("G1 E-14 F1800\n"),
+            "G1 E-3.5 F1800\n",
+        )
+        result = run(lines, retraction=3.5)
+        assert result.insertions_made == 1
+        assert any("G4 S" in l for l in result.lines)
+
+    def test_wipe_end_inside_block_does_not_affect_outer_deretract(self):
+        # A WIPE_END inside a toolchange block must not set after_wipe_end state
+        lines = make_lines(
+            *tc_full_block("; WIPE_END\n", "G1 E-.04 F1800\n"),
+            "G1 E.8 F1800\n",
+        )
+        result = run(lines, retraction=3.5)
+        # The outer deretract should be a plain replacement (not adjusted)
+        assert "G1 E3.5 F1800\n" in result.lines
+        assert not any("E4.26" in l for l in result.lines)
+
+    def test_multiple_blocks_all_protected(self):
+        block = tc_full_block("G1 E-0.8000 F1800\n", "G1 E0.8000 F1800\n")
+        lines = make_lines(*block, *block)
+        result = run(lines, retraction=3.5)
+        assert result.lines.count("G1 E-0.8000 F1800\n") == 2
+        assert result.lines.count("G1 E0.8000 F1800\n") == 2
+        assert "G1 E-3.5 F1800\n" not in result.lines
+
+
 # ── output path helpers ───────────────────────────────────────────────────────
 
 class TestOutputPath:
