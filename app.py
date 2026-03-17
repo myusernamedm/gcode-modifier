@@ -22,7 +22,7 @@ class GCodeEditorApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Bambu G-Code Editor")
-        self.geometry("700x800")
+        self.geometry("700x840")
         self.resizable(False, False)
         self.configure(fg_color=T.BG_MAIN)
 
@@ -280,13 +280,14 @@ class GCodeEditorApp(ctk.CTk):
 
     def _build_status(self):
         frame = ctk.CTkFrame(self, fg_color=T.BG_MAIN, corner_radius=0)
-        frame.pack(fill="x", padx=20, pady=10)
+        frame.pack(fill="x", padx=20, pady=(10, 16))
         self.status_label = ctk.CTkLabel(
             frame,
             text="Select a .gcode file and enter settings to begin.",
-            wraplength=660, anchor="w",
+            wraplength=660, anchor="nw", justify="left",
             text_color=T.TEXT_LABEL,
             font=ctk.CTkFont(T.FONT_FAMILY, T.FS_BODY),
+            height=44,   # room for two wrapped lines
         )
         self.status_label.pack(fill="x")
 
