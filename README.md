@@ -1,16 +1,18 @@
-# Bambu G-Code Modifier
+# Bambu H2D G-Code Modifier
 
 A Windows 11 desktop application for modifying G-Code exported from **Bambu Studio** to reduce oozing and stringing during multi-material toolchange travel.
+
+# WARNING - THIS APP HAS NOT UNDERGONE QUALITY CONTROL AND GENERATED G-CODE SHOULD BE REVIEWED MANUALLY BEFORE USE TO VERIFY CORRECTNESS.
 
 ---
 
 ## The Problem
 
-When a multi-material print finishes a toolchange at the wipe tower, the nozzle immediately retracts and travels back to the part. Any molten filament still on the nozzle tip hangs in mid-air and gets dragged across the print surface, leaving stringing and blobs.
+When a multi-material print on the H2D finishes a toolchange at the wipe tower (Foaming material in left nozzle, standard material in right nozzle), the nozzle immediately retracts and travels back to the part. Any molten filament still on the nozzle tip hangs in mid-air and gets dragged across the print surface, leaving stringing and blobs.
 
 ## The Solution
 
-This app post-processes your Bambu Studio `.gcode` file to insert three actions at each toolchange:
+This app post-processes your Bambu Studio `.gcode` file to insert three actions **for the left nozzle** at each toolchange:
 
 1. **Dwell** — hold position at the wipe tower for 3 seconds so gravity pulls any ooze down onto the tower rather than mid-air
 2. **Wipe pass** — move the nozzle 5 mm across the tower surface to wipe off residual filament
