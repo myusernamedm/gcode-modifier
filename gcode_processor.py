@@ -9,6 +9,7 @@ TIME_PATTERN      = re.compile(
 )
 TOOLCHANGE_END = '; CP TOOLCHANGE END'
 SEPARATOR      = ';------------------'
+WIPE_END       = '; WIPE_END'
 
 
 @dataclass
@@ -76,13 +77,18 @@ def find_unique_output_path(input_path):
 
 def process_lines(lines, retraction_value, add_temperature,
                   cool_temp=200, reheat_temp=270,
+                  wipe_distance=5.0, dwell_time=3,
                   input_path='', progress_callback=None):
     """
     Single-pass state machine that:
       1. Replaces all G1 E-X F1800 retraction values with retraction_value
-      2. Replaces all G1 EX F1800 de-retraction values with retraction_value
+      2. Replaces all G1 EX F1800 de-retraction values with retraction_value,
+         except after a '; WIPE_END' top-up retract where the de-retract is
+         adjusted to retraction_value + (original_deretract - original_topup)
+         to compensate for filament already retracted during the wipe moves
       3. After each '; CP TOOLCHANGE END' block (when a retraction follows),
-         inserts: G4 S3 dwell + wipe pass (+ optional M104 S{cool_temp})
+         inserts: G4 S3 dwell + wipe pass of wipe_distance mm
+         (+ optional M104 S{cool_temp})
       4. If add_temperature: also inserts M109 S{reheat_temp} before the
          de-retract at the part
       5. Detects existing dwell blocks (already-edited files) and counts them
@@ -92,18 +98,21 @@ def process_lines(lines, retraction_value, add_temperature,
     retract_line   = f"G1 E-{value_str} F1800\n"
     deretract_line = f"G1 E{value_str} F1800\n"
 
+    wipe_dist_str = f"{wipe_distance:.1f}"
     dwell_wipe_block = [
-        "G4 S3 ; dwell 3 seconds - ooze falls on tower\n",
+        f"G4 S{dwell_time} ; dwell {dwell_time} seconds - ooze falls on tower\n",
         "G91 ; relative positioning for wipe\n",
-        "G1 X5 F3000 ; wipe pass over tower\n",
-        "G1 X-5 F3000 ; wipe back\n",
+        f"G1 X{wipe_dist_str} F3000 ; wipe pass over tower\n",
+        f"G1 X-{wipe_dist_str} F3000 ; wipe back\n",
         "G90 ; absolute positioning\n",
     ]
 
-    output_lines = []
+    output_lines  = []
     after_tc_end  = False
     saw_separator = False
     pending_temp  = False
+    after_wipe_end = False
+    wipe_topup     = None  # original top-up E- value seen after WIPE_END
     insertions    = 0
     total         = len(lines)
 
@@ -112,6 +121,24 @@ def process_lines(lines, retraction_value, add_temperature,
             progress_callback(int(i / total * 100))
 
         stripped = line.rstrip('\n').rstrip('\r').strip()
+
+        # --- STATE: WIPE_END tracking (de-retract imbalance fix) ---
+        if stripped == WIPE_END:
+            after_wipe_end = True
+            output_lines.append(line)
+            continue
+
+        if after_wipe_end:
+            if stripped == '' or stripped.startswith(';'):
+                output_lines.append(line)
+                continue
+            after_wipe_end = False
+            m = RETRACT_PATTERN.match(stripped)
+            if m:
+                wipe_topup = float(m.group(1))
+                output_lines.append(retract_line)
+                continue
+            # Not a retract after WIPE_END — fall through to normal processing
 
         # --- STATE: entering after-toolchange-end zone ---
         if stripped == TOOLCHANGE_END:
@@ -143,7 +170,7 @@ def process_lines(lines, retraction_value, add_temperature,
                     )
                     pending_temp = True
                 insertions += 1
-            elif stripped.startswith('G4 S3'):
+            elif stripped.startswith('G4 S'):
                 # Already-edited file: dwell block is already present — count it
                 # for accurate time display but do not insert a second dwell
                 insertions += 1
@@ -165,6 +192,16 @@ def process_lines(lines, retraction_value, add_temperature,
         # --- GLOBAL RETRACT / DE-RETRACT VALUE REPLACEMENT ---
         if RETRACT_PATTERN.match(stripped):
             output_lines.append(retract_line)
+        elif wipe_topup is not None and DERETRACT_PATTERN.match(stripped):
+            # De-retract after a wipe-during-retract sequence: the wipe moves
+            # already retracted (original_deretract - topup) mm, so we must
+            # de-retract that extra amount on top of the user's retraction value.
+            m = DERETRACT_PATTERN.match(stripped)
+            deretract_original = float(m.group(1))
+            wipe_retracted = deretract_original - wipe_topup
+            adjusted = retraction_value + wipe_retracted
+            output_lines.append(f"G1 E{adjusted:.2f} F1800\n")
+            wipe_topup = None
         elif DERETRACT_PATTERN.match(stripped):
             output_lines.append(deretract_line)
         else:
@@ -174,7 +211,7 @@ def process_lines(lines, retraction_value, add_temperature,
         progress_callback(100)
 
     original_seconds = parse_original_time(lines)
-    added_seconds    = insertions * 3
+    added_seconds    = insertions * dwell_time
     if add_temperature:
         added_seconds += insertions * 90
 
